@@ -314,8 +314,8 @@ extern "C" void app_main(void)
   esp_chip_info(&chip_info);
 
   // Create tasks.
-  xTaskCreate(data_gen_task, "data_gen_task 1", 1024, NULL, 5, NULL);
-  xTaskCreate(data_gen_task, "data_gen_task 2", 1024, NULL, 5, NULL);
+  xTaskCreate(data_gen_task, "data_gen_task 1", 4096, NULL, 5, NULL);
+  xTaskCreate(data_gen_task, "data_gen_task 2", 4096, NULL, 5, NULL);
   // xTaskCreate(udp_client_task_netconn, "udp_client", 4096, NULL, 1, NULL);
   // xTaskCreate(udp_client_task_raw, "udp_client", 4096, NULL, 1, NULL);
   xTaskCreate(udp_client_task_bsd, "udp_client", 4096, NULL, 1, NULL);
