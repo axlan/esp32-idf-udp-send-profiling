@@ -28,23 +28,50 @@
 
 #include "secret.h"
 
+#include "min_logger/min_logger.h"
+
 // ESP-IDF Logging Tag
 static const char *TAG = "UDPTest";
 
 // Listen on host with:
 // nc -kluvw 1 192.168.1.111 3333
-#define HOST_IP_ADDR "192.168.1.111"
+#define HOST_IP_ADDR "192.168.1.192"
 #define PORT 3333
 
 // This accounts for the standard 1500 byte Maximum Transmission Unit (MTU)
 // minus the 20-byte IP header and 8-byte UDP header (1500 - 20 - 8 = 1472).
-static constexpr size_t UDP_MESSAGE_SIZE = 1440;
+static constexpr size_t UDP_MESSAGE_SIZE = 128;
 
 // Semaphore to signal Wi-Fi connection
 static SemaphoreHandle_t wifi_connected_sem;
 
 // Data logging ring buffer
 static RingbufHandle_t buf_handle;
+
+extern "C"
+{
+  size_t min_logger_get_thread_name(char *thread_name, size_t max_len)
+  {
+    char *taskName = pcTaskGetName(NULL);
+    strncpy(thread_name, taskName, max_len);
+    thread_name[max_len - 1] = 0;
+    return strlen(thread_name);
+  }
+
+  uint64_t min_logger_get_time_nanoseconds()
+  {
+    return esp_timer_get_time() * 1000;
+  }
+
+  void min_logger_write(const uint8_t *msg, size_t len_bytes)
+  {
+    UBaseType_t res = xRingbufferSend(buf_handle, msg, len_bytes, 0);
+    if (res != pdTRUE)
+    {
+      ESP_LOGE(TAG, "Failed to send item");
+    }
+  }
+}
 
 // Wi-Fi event handler
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
@@ -105,10 +132,11 @@ void wifi_init_sta(void)
   printf("\nWiFi connected.\n");
 }
 
-static void log_heap() {
-    size_t cur_heap = heap_caps_get_free_size(MALLOC_CAP_DEFAULT);
-    size_t min_heap = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
-    ESP_LOGI(TAG, "min_heap/cur_heap %zu/%zu", min_heap, cur_heap);
+static void log_heap()
+{
+  size_t cur_heap = heap_caps_get_free_size(MALLOC_CAP_DEFAULT);
+  size_t min_heap = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
+  ESP_LOGI(TAG, "min_heap/cur_heap %zu/%zu", min_heap, cur_heap);
 }
 
 // https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/lwip.html
@@ -129,7 +157,7 @@ static void udp_client_task_raw(void *pvParameters)
 
   ip_addr_t dest_ip;
   dest_ip.type = IPADDR_TYPE_V4;
-  IP4_ADDR(&dest_ip.u_addr.ip4, 192, 168, 1, 111);
+  dest_ip.u_addr.ip4.addr = inet_addr(HOST_IP_ADDR);
 
   // Allocate a pbuf that will point to a block of read only memory. In this case it will point to a half of the ring buffer being held.
   struct pbuf *pbuf = pbuf_alloc(PBUF_TRANSPORT, UDP_MESSAGE_SIZE, PBUF_ROM);
@@ -178,7 +206,7 @@ static void udp_client_task_netconn(void *pvParameters)
 
   ip_addr_t dest_ip;
   dest_ip.type = IPADDR_TYPE_V4;
-  IP4_ADDR(&dest_ip.u_addr.ip4, 192, 168, 1, 111);
+  dest_ip.u_addr.ip4.addr = inet_addr(HOST_IP_ADDR);
 
   // Create a new connection identifier for UDP
   conn = netconn_new(NETCONN_UDP);
@@ -281,11 +309,7 @@ static void data_gen_task(void *pvParameters)
   {
     {
       TRACE_SCOPE("data_gen");
-      UBaseType_t res = xRingbufferSend(buf_handle, taskName, strlen(taskName), pdMS_TO_TICKS(1));
-      if (res != pdTRUE)
-      {
-        ESP_LOGE(TAG, "Failed to send item");
-      }
+      MIN_LOGGER_RECORD_AND_LOG_VALUE_ARRAY(MIN_LOGGER_INFO, "data_gen", char, taskName, strlen(taskName), "${data_gen}");
     }
     vTaskDelay(50 / portTICK_PERIOD_MS);
   }
@@ -331,6 +355,9 @@ extern "C" void app_main(void)
 
   printf("MabuTrace server started. Go to http://" IPSTR ":81/ to capture a trace.\n",
          IP2STR(&ip_info.ip));
+
+  min_logger_write_thread_names();
+  MIN_LOGGER_LOG(MIN_LOGGER_INFO, "Start");
 
   for (;;)
   {

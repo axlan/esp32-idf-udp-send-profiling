@@ -1,0 +1,3 @@
+[submodule "min-logger"]
+	path = min-logger
+	url = git@github.com:axlan/min-logger.git
