@@ -48,30 +48,30 @@ static SemaphoreHandle_t wifi_connected_sem;
 // Data logging ring buffer
 static RingbufHandle_t buf_handle;
 
-extern "C"
-{
-  size_t min_logger_get_thread_name(char *thread_name, size_t max_len)
-  {
-    char *taskName = pcTaskGetName(NULL);
-    strncpy(thread_name, taskName, max_len);
-    thread_name[max_len - 1] = 0;
-    return strlen(thread_name);
-  }
+// extern "C"
+// {
+//   size_t min_logger_get_thread_name(char *thread_name, size_t max_len)
+//   {
+//     char *taskName = pcTaskGetName(NULL);
+//     strncpy(thread_name, taskName, max_len);
+//     thread_name[max_len - 1] = 0;
+//     return strlen(thread_name);
+//   }
 
-  uint64_t min_logger_get_time_nanoseconds()
-  {
-    return esp_timer_get_time() * 1000;
-  }
+//   uint64_t min_logger_get_time_nanoseconds()
+//   {
+//     return esp_timer_get_time() * 1000;
+//   }
 
-  void min_logger_write(const uint8_t *msg, size_t len_bytes)
-  {
-    UBaseType_t res = xRingbufferSend(buf_handle, msg, len_bytes, 0);
-    if (res != pdTRUE)
-    {
-      ESP_LOGE(TAG, "Failed to send item");
-    }
-  }
-}
+//   void min_logger_write(const uint8_t *msg, size_t len_bytes)
+//   {
+//     UBaseType_t res = xRingbufferSend(buf_handle, msg, len_bytes, 0);
+//     if (res != pdTRUE)
+//     {
+//       ESP_LOGE(TAG, "Failed to send item");
+//     }
+//   }
+// }
 
 // Wi-Fi event handler
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
@@ -337,12 +337,14 @@ extern "C" void app_main(void)
   esp_chip_info_t chip_info;
   esp_chip_info(&chip_info);
 
+  min_logger_init_udp(1024, 100, "192.168.1.196", 3333);
+
   // Create tasks.
   xTaskCreate(data_gen_task, "data_gen_task 1", 4096, NULL, 5, NULL);
   xTaskCreate(data_gen_task, "data_gen_task 2", 4096, NULL, 5, NULL);
   // xTaskCreate(udp_client_task_netconn, "udp_client", 4096, NULL, 1, NULL);
   // xTaskCreate(udp_client_task_raw, "udp_client", 4096, NULL, 1, NULL);
-  xTaskCreate(udp_client_task_bsd, "udp_client", 4096, NULL, 1, NULL);
+  //xTaskCreate(udp_client_task_bsd, "udp_client", 4096, NULL, 1, NULL);
 
   // Initialize MabuTrace and start server on port 81
   ESP_ERROR_CHECK(mabutrace_init());
